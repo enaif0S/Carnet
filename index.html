@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Carnet d'Entretien</title>
+    <meta name="description" content="Application de suivi d'entretien de véhicule">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons (Material Symbols Outlined) -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- HEADER -->
+        <header class="app-header no-print">
+            <div class="header-content">
+                <div class="app-title">
+                    <span class="material-symbols-outlined icon-large">directions_car</span>
+                    <h1>Mon Carnet</h1>
+                </div>
+                
+                <div class="vehicle-selector-container">
+                    <select id="vehicle-selector" class="premium-select">
+                        <option value="1">Ma Voiture Principale</option>
+                        <option value="new">+ Ajouter un véhicule</option>
+                    </select>
+                </div>
+            </div>
+            
+            <nav class="app-nav">
+                <button type="button" class="nav-btn active" data-view="form-view">
+                    <span class="material-symbols-outlined">add_circle</span>
+                    Nouvel Entretien
+                </button>
+                <button type="button" class="nav-btn" data-view="list-view">
+                    <span class="material-symbols-outlined">history</span>
+                    Historique
+                </button>
+                <button type="button" class="nav-btn" id="print-btn">
+                    <span class="material-symbols-outlined">print</span>
+                    Imprimer
+                </button>
+            </nav>
+        </header>
+
+        <main class="app-main">
+            <!-- VIEW: FORM -->
+            <section id="form-view" class="view-section active no-print">
+                <div class="glass-card">
+                    <h2 class="section-title">Ajouter une intervention</h2>
+                    
+                    <form id="maintenance-form" class="premium-form">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="date-input">Date</label>
+                                <div class="input-icon">
+                                    <span class="material-symbols-outlined">calendar_today</span>
+                                    <input type="date" id="date-input" required>
+                                </div>
+                            </div>
+    
+                            <div class="form-group">
+                                <label for="km-input">Kilométrage actuel (km)</label>
+                                <div class="input-icon">
+                                    <span class="material-symbols-outlined">speed</span>
+                                    <input type="number" id="km-input" placeholder="ex: 125000" required min="0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Type d'intervention</label>
+                            <div class="chips-container" id="type-chips">
+                                <label class="chip">
+                                    <input type="radio" name="type-intervention" value="Vidange" checked>
+                                    <span class="chip-content">Vidange</span>
+                                </label>
+                                <label class="chip">
+                                    <input type="radio" name="type-intervention" value="Freins">
+                                    <span class="chip-content">Freins</span>
+                                </label>
+                                <label class="chip">
+                                    <input type="radio" name="type-intervention" value="Batterie">
+                                    <span class="chip-content">Batterie</span>
+                                </label>
+                                <label class="chip">
+                                    <input type="radio" name="type-intervention" value="Pneus">
+                                    <span class="chip-content">Pneus</span>
+                                </label>
+                                <label class="chip">
+                                    <input type="radio" name="type-intervention" value="Autre">
+                                    <span class="chip-content">Autre</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Details specifiques Vidange -->
+                        <div id="vidange-details" class="form-group glass-card-nested" style="margin-bottom: 20px;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color: white; font-weight: 600;">
+                                <input type="checkbox" id="check-huile" checked style="width:18px; height:18px; accent-color: var(--accent-primary);">
+                                Changement d'Huile
+                            </label>
+                            
+                            <div id="huile-options" class="form-row" style="margin-top: 12px;">
+                                <div class="form-group">
+                                    <label for="huile-marque">Marque de l'huile</label>
+                                    <input type="text" id="huile-marque" placeholder="Ex: Total, Castrol...">
+                                </div>
+                                <div class="form-group">
+                                    <label for="huile-ref">Référence</label>
+                                    <input type="text" id="huile-ref" placeholder="Ex: 5W30, 10W40...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="detail-input">Autres Détails (Filtres, Pièces...)</label>
+                            <textarea id="detail-input" rows="2" placeholder="Ex: Filtre à huile, filtre habitacle..."></textarea>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="cost-input">Coût (DA)</label>
+                                <div class="input-icon">
+                                    <span class="material-symbols-outlined">payments</span>
+                                    <input type="number" id="cost-input" placeholder="ex: 8500" min="0">
+                                </div>
+                            </div>
+    
+                            <div class="form-group">
+                                <label for="garage-input">Garage / Technicien</label>
+                                <div class="input-icon">
+                                    <span class="material-symbols-outlined">build</span>
+                                    <input type="text" id="garage-input" placeholder="Nom du garage">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="obs-input">Observations</label>
+                            <textarea id="obs-input" rows="2" placeholder="Notes supplémentaires..."></textarea>
+                        </div>
+
+                        <!-- Auto-calculated next maintenance (Only for Vidange) -->
+                        <div class="form-summary glass-card-nested" id="next-maintenance-preview">
+                            <span class="material-symbols-outlined text-accent">info</span>
+                            <div class="summary-text">
+                                <p>Prochain entretien estimé</p>
+                                <h3 id="next-km-display">--- km</h3>
+                                <p class="text-small">Calculé: +8000 km (Uniquement pour Vidange)</p>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-primary btn-large">
+                            <span class="material-symbols-outlined">save</span>
+                            Enregistrer l'intervention
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- VIEW: LIST (HISTORY) -->
+            <section id="list-view" class="view-section no-print">
+                <div class="list-header">
+                    <h2 class="section-title">Historique des entretiens</h2>
+                    <span class="badge" id="record-count">0</span>
+                </div>
+                
+                <div id="records-container" class="records-timeline">
+                    <!-- Records will be injected here by JS -->
+                </div>
+
+                <div id="empty-state" class="empty-state hidden">
+                    <span class="material-symbols-outlined icon-huge">directions_car</span>
+                    <h3>Aucun entretien enregistré</h3>
+                    <p>Commencez par ajouter votre première intervention.</p>
+                </div>
+            </section>
+
+            <!-- PRINT ONLY VIEW -->
+            <section id="print-view" class="print-only">
+                <div class="print-header">
+                    <h1>Carnet d'Entretien Voiture</h1>
+                    <h2 id="print-vehicle-name">Véhicule: Ma Voiture Principale</h2>
+                </div>
+                
+                <div class="print-table-container">
+                    <table class="print-table" id="print-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Kilométrage</th>
+                                <th>Intervention</th>
+                                <th>Détails & Obs.</th>
+                                <th>Coût (DA)</th>
+                                <th>Garage</th>
+                                <th>Prochain Entretien</th>
+                            </tr>
+                        </thead>
+                        <tbody id="print-table-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="print-footer">
+                    <p>Généré par Antigravity Carnet d'Entretien</p>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal pour Nouveau Véhicule -->
+    <div id="new-vehicle-modal" class="modal-overlay hidden no-print">
+        <div class="modal-content glass-card">
+            <h2 id="modal-vehicle-title">Nouveau Véhicule</h2>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label for="new-vehicle-marque">Marque</label>
+                <input type="text" id="new-vehicle-marque" placeholder="Ex: Peugeot">
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label for="new-vehicle-modele">Modèle</label>
+                <input type="text" id="new-vehicle-modele" placeholder="Ex: 208">
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label for="new-vehicle-annee">Année</label>
+                <input type="number" id="new-vehicle-annee" placeholder="Ex: 2019">
+            </div>
+            <div class="form-group">
+                <label for="new-vehicle-km">Kilométrage actuel</label>
+                <input type="number" id="new-vehicle-km" placeholder="Ex: 125000" min="0">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="cancel-vehicle-btn">Annuler</button>
+                <button type="button" class="btn-primary" id="save-vehicle-btn">Ajouter</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
