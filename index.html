@@ -18,7 +18,31 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="app">
+    <!-- AUTH VIEW -->
+    <div id="auth-view" class="view-section active">
+        <div class="glass-card" style="max-width: 400px; margin: 80px auto; text-align:center;">
+            <span class="material-symbols-outlined icon-large" style="margin-bottom:16px; color:var(--accent-primary);">directions_car</span>
+            <h2 style="margin-bottom:24px;">Carnet Auto Cloud</h2>
+            <form id="auth-form" class="premium-form">
+                <div class="form-group" style="text-align:left;">
+                    <label for="auth-email">Email</label>
+                    <input type="email" id="auth-email" required placeholder="votre@email.com">
+                </div>
+                <div class="form-group" style="text-align:left; margin-bottom:16px;">
+                    <label for="auth-password">Mot de passe</label>
+                    <input type="password" id="auth-password" required placeholder="********">
+                </div>
+                <button type="submit" class="btn-primary btn-large" id="btn-submit-auth">Se Connecter</button>
+                <div style="margin-top: 16px;">
+                    <a href="#" id="toggle-auth-mode" style="color:var(--text-secondary); text-decoration:none; font-size:0.9rem;">Pas de compte ? S'inscrire ici.</a>
+                </div>
+                <p id="auth-error" style="color:var(--warning); margin-top:12px; display:none; font-size:0.85rem;"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="app-wrapper" style="display:none;">
         <!-- HEADER -->
         <header class="app-header no-print">
             <div class="header-content">
@@ -27,11 +51,14 @@
                     <h1>Mon Carnet</h1>
                 </div>
                 
-                <div class="vehicle-selector-container">
+                <div class="vehicle-selector-container" style="display:flex; align-items:center; gap:8px;">
                     <select id="vehicle-selector" class="premium-select">
                         <option value="1">Ma Voiture Principale</option>
                         <option value="new">+ Ajouter un véhicule</option>
                     </select>
+                    <button class="nav-btn" id="logout-btn" title="Se déconnecter" style="padding:8px;">
+                        <span class="material-symbols-outlined">logout</span>
+                    </button>
                 </div>
             </div>
             
@@ -217,7 +244,7 @@
             </section>
 
         </main>
-    </div>
+    </div> <!-- Fin du app-wrapper -->
 
     <!-- Modal pour Nouveau Véhicule -->
     <div id="new-vehicle-modal" class="modal-overlay hidden no-print">
@@ -246,6 +273,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,15 +1,71 @@
 // app.js
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import {
+    getFirestore,
+    collection,
+    query,
+    where,
+    getDocs,
+    addDoc,
+    orderBy
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-// --- STATE MANAGEMENT ---
-let vehicles = JSON.parse(localStorage.getItem('ce_vehicles')) || [];
-let currentVehicleId = parseInt(localStorage.getItem('ce_currentVehicle')) || null;
+// --- CONFIGURATION FIREBASE ---
+// ⚠️ À REMPLACER : Le développeur doit créer un projet Firebase et coller les valeurs ici.
+const firebaseConfig = {
+    apiKey: "AIzaSyBnmPy5Afbhr8XIRSE_OxZq_50yLqMZamc",
+    authDomain: "carnetentretient.firebaseapp.com",
+    projectId: "carnetentretient",
+    storageBucket: "carnetentretient.firebasestorage.app",
+    messagingSenderId: "843731217789",
+    appId: "1:843731217789:web:329eb73ecc30d61ed23014",
+    measurementId: "G-J6L37XM9ED"
+};
 
-let records = JSON.parse(localStorage.getItem('ce_records')) || [];
+// Intégration factice sécurisée si aucune configuration n'est modifiée pour éviter que l'applie ne crashe avant configuration
+const isFirebaseConfigured = firebaseConfig.apiKey !== "1:843731217789:web:329eb73ecc30d61ed23014";
+
+let app, auth, db;
+if (isFirebaseConfigured) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+}
+
+// --- VARIABLES CLOUD ---
+let currentUser = null;
+let vehicles = [];
+let currentVehicleId = null;
+let records = [];
 
 // --- DOM ELEMENTS ---
+// Auth Logic
+const authView = document.getElementById('auth-view');
+const appWrapper = document.getElementById('app-wrapper');
+const authForm = document.getElementById('auth-form');
+const authEmail = document.getElementById('auth-email');
+const authPassword = document.getElementById('auth-password');
+const btnSubmitAuth = document.getElementById('btn-submit-auth');
+const toggleAuthModeBtn = document.getElementById('toggle-auth-mode');
+const authError = document.getElementById('auth-error');
+const logoutBtn = document.getElementById('logout-btn');
+
+let isSignupMode = false;
+
+// App Elements
 const vehicleSelector = document.getElementById('vehicle-selector');
 const navBtns = document.querySelectorAll('.nav-btn');
-const views = document.querySelectorAll('.view-section');
+const views = document.querySelectorAll('.view-section:not(#auth-view)');
+const recordsContainer = document.getElementById('records-container');
+const recordCount = document.getElementById('record-count');
+const emptyState = document.getElementById('empty-state');
 
 // Form Elements
 const form = document.getElementById('maintenance-form');
@@ -25,53 +81,146 @@ const huileOptions = document.getElementById('huile-options');
 const huileMarque = document.getElementById('huile-marque');
 const huileRef = document.getElementById('huile-ref');
 
-// List Elements
-const recordsContainer = document.getElementById('records-container');
-const recordCount = document.getElementById('record-count');
-const emptyState = document.getElementById('empty-state');
-
 // Modal Elements
 const modal = document.getElementById('new-vehicle-modal');
 const modalTitle = document.getElementById('modal-vehicle-title');
 const btnCancelVehicle = document.getElementById('cancel-vehicle-btn');
 const btnSaveVehicle = document.getElementById('save-vehicle-btn');
-
 const inputMarque = document.getElementById('new-vehicle-marque');
 const inputModele = document.getElementById('new-vehicle-modele');
 const inputAnnee = document.getElementById('new-vehicle-annee');
 const inputKm = document.getElementById('new-vehicle-km');
 
 // Print Elements
-const btnPrint = document.getElementById('print-btn');
 const printTableBody = document.getElementById('print-table-body');
 const printVehicleName = document.getElementById('print-vehicle-name');
 
 let isOnboarding = false;
 
-// --- INIT ---
+// --- INIT APP / AUTH LISTENER ---
 function init() {
-    // Set today's date
+    if (!isFirebaseConfigured) {
+        authView.innerHTML = `
+            <div class="glass-card" style="max-width: 500px; margin: 100px auto; text-align:center;">
+                <span class="material-symbols-outlined icon-large" style="color:var(--warning)">warning</span>
+                <h2>Firebase Non Configuré</h2>
+                <p style="color:var(--text-secondary); margin-top:20px;">
+                    Ouvrez le fichier <code>app.js</code> et modifiez l'objet <code>firebaseConfig</code> avec les identifiants de votre projet Firebase.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
     const today = new Date().toISOString().split('T')[0];
     defaultDate.value = today;
 
-    if (vehicles.length === 0) {
-        // Premier lancement : obliger la création
-        showVehicleModal(true);
-    } else {
-        if (!currentVehicleId) currentVehicleId = vehicles[0].id;
-        renderVehicleOptions();
-        renderRecords();
-        updateTypeUI();
+    // Listen to Firebase Auth state
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            currentUser = user;
+            authView.classList.remove('active');
+            appWrapper.style.display = 'block';
+            await loadUserData();
+        } else {
+            currentUser = null;
+            appWrapper.style.display = 'none';
+            authView.classList.add('active');
+            vehicles = [];
+            records = [];
+        }
+    });
+
+    attachAuthListeners();
+    attachAppListeners();
+}
+
+function attachAuthListeners() {
+    toggleAuthModeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        isSignupMode = !isSignupMode;
+        if (isSignupMode) {
+            btnSubmitAuth.textContent = "S'inscrire";
+            toggleAuthModeBtn.textContent = "Déjà un compte ? Se connecter";
+        } else {
+            btnSubmitAuth.textContent = "Se Connecter";
+            toggleAuthModeBtn.textContent = "Pas de compte ? S'inscrire ici.";
+        }
+        authError.style.display = 'none';
+    });
+
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = authEmail.value.trim();
+        const pwd = authPassword.value;
+        authError.style.display = 'none';
+        btnSubmitAuth.disabled = true;
+        btnSubmitAuth.innerHTML = "Patientez...";
+
+        try {
+            if (isSignupMode) {
+                await createUserWithEmailAndPassword(auth, email, pwd);
+            } else {
+                await signInWithEmailAndPassword(auth, email, pwd);
+            }
+        } catch (error) {
+            authError.style.display = 'block';
+            authError.textContent = error.message;
+        } finally {
+            btnSubmitAuth.disabled = false;
+            btnSubmitAuth.textContent = isSignupMode ? "S'inscrire" : "Se Connecter";
+        }
+    });
+
+    logoutBtn.addEventListener('click', () => {
+        signOut(auth);
+    });
+}
+
+async function loadUserData() {
+    try {
+        // Load Vehicles
+        const vQ = query(collection(db, "vehicles"), where("userId", "==", currentUser.uid));
+        const vSnap = await getDocs(vQ);
+        vehicles = [];
+        vSnap.forEach(doc => {
+            vehicles.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Load Records
+        const rQ = query(collection(db, "records"), where("userId", "==", currentUser.uid), orderBy("date", "desc"));
+        const rSnap = await getDocs(rQ);
+        records = [];
+        rSnap.forEach(doc => {
+            records.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Setup UI
+        if (vehicles.length === 0) {
+            showVehicleModal(true);
+        } else {
+            currentVehicleId = vehicles[0].id;
+            renderVehicleOptions();
+            renderRecords();
+            updateTypeUI();
+        }
+
+    } catch (err) {
+        console.error("Erreur de chargement: ", err);
+        // Note: Firestore nécessite parfois la création d'index (un lien apparaitra dans la console réseau lors d'erreurs OrderBy)
     }
-    
-    // Attach listeners
+}
+
+// --- APP LISTENERS & LOGIC ---
+
+function attachAppListeners() {
     kmInput.addEventListener('input', updateTypeUI);
     radioTypes.forEach(r => r.addEventListener('change', updateTypeUI));
     form.addEventListener('submit', handleFormSubmit);
 
     checkHuile.addEventListener('change', (e) => {
-        if(e.target.checked) {
-            huileOptions.style.display = 'grid'; // .form-row uses grid
+        if (e.target.checked) {
+            huileOptions.style.display = 'grid';
             huileOptions.style.opacity = '1';
         } else {
             huileOptions.style.display = 'none';
@@ -79,17 +228,15 @@ function init() {
     });
 
     vehicleSelector.addEventListener('change', (e) => {
-        if(e.target.value === 'new') {
+        if (e.target.value === 'new') {
             showVehicleModal(false);
-            e.target.value = currentVehicleId; // revert temporarily
+            e.target.value = currentVehicleId;
         } else {
-            currentVehicleId = parseInt(e.target.value);
-            localStorage.setItem('ce_currentVehicle', currentVehicleId);
+            currentVehicleId = e.target.value;
             renderRecords();
         }
     });
 
-    // Navigation
     navBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             if (btn.id === 'print-btn') {
@@ -97,57 +244,65 @@ function init() {
                 window.print();
                 return;
             }
+            if (btn.id === 'logout-btn') return;
 
             const targetView = btn.getAttribute('data-view');
-            
-            navBtns.forEach(b => b.classList.remove('active'));
-            if(btn.id !== 'print-btn') btn.classList.add('active');
+            navBtns.forEach(b => {
+                if (b.id !== 'print-btn' && b.id !== 'logout-btn') b.classList.remove('active');
+            });
+            btn.classList.add('active');
 
             views.forEach(v => {
-                if(v.id === targetView) v.classList.add('active');
+                if (v.id === targetView) v.classList.add('active');
                 else v.classList.remove('active');
             });
         });
     });
 
-    // Modal
     btnCancelVehicle.addEventListener('click', () => {
         if (!isOnboarding) modal.classList.add('hidden');
     });
 
-    btnSaveVehicle.addEventListener('click', () => {
+    btnSaveVehicle.addEventListener('click', async () => {
         const marque = inputMarque.value.trim();
         const modele = inputModele.value.trim();
         const annee = inputAnnee.value.trim();
         const initialKm = parseInt(inputKm.value) || 0;
 
         if (marque && modele) {
-            const newId = Date.now();
             const displayName = `${marque} ${modele} ${annee ? '(' + annee + ')' : ''}`.trim();
+            btnSaveVehicle.disabled = true;
 
-            vehicles.push({ 
-                id: newId, 
-                marque, 
-                modele, 
+            const newVehData = {
+                userId: currentUser.uid,
+                marque,
+                modele,
                 annee,
                 initialKm,
-                name: displayName 
-            });
+                name: displayName
+            };
 
-            localStorage.setItem('ce_vehicles', JSON.stringify(vehicles));
-            currentVehicleId = newId;
-            localStorage.setItem('ce_currentVehicle', currentVehicleId);
-            
-            modal.classList.add('hidden');
-            inputMarque.value = '';
-            inputModele.value = '';
-            inputAnnee.value = '';
-            inputKm.value = '';
-            
-            isOnboarding = false;
-            renderVehicleOptions();
-            renderRecords();
-            updateTypeUI();
+            try {
+                const docRef = await addDoc(collection(db, "vehicles"), newVehData);
+                const vehicleObj = { id: docRef.id, ...newVehData };
+                vehicles.push(vehicleObj);
+                currentVehicleId = vehicleObj.id;
+
+                modal.classList.add('hidden');
+                inputMarque.value = '';
+                inputModele.value = '';
+                inputAnnee.value = '';
+                inputKm.value = '';
+
+                isOnboarding = false;
+                renderVehicleOptions();
+                renderRecords();
+                updateTypeUI();
+            } catch (e) {
+                alert("Erreur lors de l'ajout: " + e.message);
+            } finally {
+                btnSaveVehicle.disabled = false;
+            }
         } else {
             alert("Veuillez au moins renseigner la Marque et le Modèle.");
         }
@@ -157,29 +312,25 @@ function init() {
 function showVehicleModal(onboarding = false) {
     isOnboarding = onboarding;
     modal.classList.remove('hidden');
-    
     if (onboarding) {
         modalTitle.textContent = "🚗 Bienvenue ! Ajoutez votre 1er véhicule";
-        btnCancelVehicle.style.display = 'none'; // Pas d'annulation possible
+        btnCancelVehicle.style.display = 'none';
     } else {
         modalTitle.textContent = "Nouveau Véhicule";
         btnCancelVehicle.style.display = 'block';
     }
 }
 
-// --- LOGIC ---
-
 function getSelectedType() {
     let type = 'Vidange';
     radioTypes.forEach(r => {
-        if(r.checked) type = r.value;
+        if (r.checked) type = r.value;
     });
     return type;
 }
 
 function updateTypeUI() {
     if (!currentVehicleId) return;
-    
     const type = getSelectedType();
     const km = parseInt(kmInput.value) || 0;
     const previewContainer = document.getElementById('next-maintenance-preview');
@@ -196,9 +347,9 @@ function updateTypeUI() {
     }
 }
 
-function handleFormSubmit(e) {
+async function handleFormSubmit(e) {
     e.preventDefault();
-    if (!currentVehicleId) return;
+    if (!currentVehicleId || !currentUser) return;
 
     const date = document.getElementById('date-input').value;
     const km = parseInt(kmInput.value);
@@ -219,37 +370,47 @@ function handleFormSubmit(e) {
         }
     }
 
-    const newRecord = {
-        id: Date.now(),
-        vehicleId: currentVehicleId,
-        date,
-        km,
-        type,
-        detail,
-        cost,
-        garage,
-        obs,
-        nextKm
-    };
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
 
-    records.push(newRecord);
-    localStorage.setItem('ce_records', JSON.stringify(records));
+    try {
+        const newRecData = {
+            userId: currentUser.uid,
+            vehicleId: currentVehicleId,
+            date,
+            km,
+            type,
+            detail,
+            cost,
+            garage,
+            obs,
+            nextKm
+        };
 
-    // Reset Form (keep date)
-    kmInput.value = '';
-    document.getElementById('detail-input').value = '';
-    document.getElementById('cost-input').value = '';
-    document.getElementById('garage-input').value = '';
-    document.getElementById('obs-input').value = '';
-    huileMarque.value = '';
-    huileRef.value = '';
-    checkHuile.checked = true;
-    huileOptions.style.display = 'grid';
-    
-    // Switch to List View
-    document.querySelector('[data-view="list-view"]').click();
-    renderRecords();
+        const docRef = await addDoc(collection(db, "records"), newRecData);
+        records.unshift({ id: docRef.id, ...newRecData }); // Ajouter au début car on sort desc sur date normalement
+
+        // Reset
+        kmInput.value = '';
+        document.getElementById('detail-input').value = '';
+        document.getElementById('cost-input').value = '';
+        document.getElementById('garage-input').value = '';
+        document.getElementById('obs-input').value = '';
+        huileMarque.value = '';
+        huileRef.value = '';
+        checkHuile.checked = true;
+        huileOptions.style.display = 'grid';
+
+        document.querySelector('[data-view="list-view"]').click();
+        renderRecords();
+    } catch (err) {
+        alert("Erreur de sauvegarde: " + err.message);
+    } finally {
+        submitBtn.disabled = false;
+    }
 }
+
+// --- RENDERING ---
 
 function renderVehicleOptions() {
     vehicleSelector.innerHTML = '';
@@ -257,7 +418,7 @@ function renderVehicleOptions() {
         const opt = document.createElement('option');
         opt.value = v.id;
         opt.textContent = v.name;
-        if(v.id === currentVehicleId) opt.selected = true;
+        if (v.id === currentVehicleId) opt.selected = true;
         vehicleSelector.appendChild(opt);
     });
     const addOpt = document.createElement('option');
@@ -267,7 +428,7 @@ function renderVehicleOptions() {
 }
 
 function formatDate(dateStr) {
-    if(!dateStr) return '';
+    if (!dateStr) return '';
     const d = new Date(dateStr);
     return d.toLocaleDateString('fr-FR');
 }
@@ -276,7 +437,7 @@ function getVehicleRecords() {
     if (!currentVehicleId) return [];
     return records
         .filter(r => r.vehicleId === currentVehicleId)
-        .sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort descending
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 function renderRecords() {
@@ -289,8 +450,8 @@ function renderRecords() {
 
     const vRecords = getVehicleRecords();
     recordCount.textContent = vRecords.length;
-    
-    if(vRecords.length === 0) {
+
+    if (vRecords.length === 0) {
         recordsContainer.innerHTML = '';
         emptyState.classList.remove('hidden');
         return;
@@ -302,9 +463,9 @@ function renderRecords() {
     vRecords.forEach(rec => {
         const card = document.createElement('div');
         card.className = 'record-card';
-        
+
         let nextAlert = '';
-        if(rec.nextKm) {
+        if (rec.nextKm) {
             nextAlert = `
                 <div class="next-maintenance-alert">
                     <span class="material-symbols-outlined">schedule</span>
@@ -331,7 +492,7 @@ function renderRecords() {
                 </div>
                 
                 <div class="card-details">
-                    ${rec.detail ? `<strong>Détails:</strong> ${rec.detail}<br>` : ''}
+                    ${rec.detail ? `<strong>Détails:</strong> ${rec.detail.replace(/\n/g, '<br>')}<br>` : ''}
                     ${rec.obs ? `<strong>Obs:</strong> ${rec.obs}` : ''}
                 </div>
                 
@@ -342,7 +503,7 @@ function renderRecords() {
                 ${nextAlert}
             </div>
         `;
-        
+
         recordsContainer.appendChild(card);
     });
 }
@@ -350,10 +511,10 @@ function renderRecords() {
 function preparePrint() {
     const currentVehicle = vehicles.find(v => v.id === currentVehicleId);
     printVehicleName.textContent = `Véhicule: ${currentVehicle ? currentVehicle.name : ''}`;
-    
+
     const vRecords = getVehicleRecords();
     printTableBody.innerHTML = '';
-    
+
     vRecords.forEach(rec => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -361,7 +522,7 @@ function preparePrint() {
             <td>${rec.km.toLocaleString()} km</td>
             <td>${rec.type}</td>
             <td>
-                ${rec.detail || ''}
+                ${rec.detail ? rec.detail.replace(/\n/g, '<br>') : ''}
                 ${rec.obs ? '<br><em>Obs: ' + rec.obs + '</em>' : ''}
             </td>
             <td>${rec.cost ? parseInt(rec.cost).toLocaleString() : '-'}</td>
