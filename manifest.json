@@ -2,7 +2,7 @@
   "name": "Carnet d'Entretien",
   "short_name": "Carnet Auto",
   "description": "Application de suivi d'entretien automobile pour mobile",
-  "start_url": "/Carnet/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
@@ -19,5 +19,8 @@
       "type": "image/png"
     }
   ],
-  "lang": "fr"
+  "lang": "fr",
+  "categories": [
+    "utilities"
+  ]
 }
