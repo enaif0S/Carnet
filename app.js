@@ -188,12 +188,15 @@ async function loadUserData() {
         });
 
         // Load Records
-        const rQ = query(collection(db, "records"), where("userId", "==", currentUser.uid), orderBy("date", "desc"));
+        const rQ = query(collection(db, "records"), where("userId", "==", currentUser.uid));
         const rSnap = await getDocs(rQ);
         records = [];
         rSnap.forEach(doc => {
             records.push({ id: doc.id, ...doc.data() });
         });
+        
+        // Tri manuel en Javascript pour éviter d'avoir besoin d'un index Firebase
+        records.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         // Setup UI
         if (vehicles.length === 0) {
